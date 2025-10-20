@@ -43,7 +43,7 @@
   </div>
 
 <script>
-const epubUrl = "https://ascii-tractor-greg-technology.trycloudflare.com/JJK/jjk0.epub";
+let epubUrl = '';
 let imgFiles = [], images = [];
 let current = 0, twoPage = false;
 const loadingEl = document.getElementById('loading');
@@ -53,7 +53,26 @@ const pagePicker = document.getElementById('pagePicker');
 const totalEl = document.getElementById('total');
 const toggleBtn = document.getElementById('toggleView');
 
+// Fetch base URL from epub_base.txt in repo root
+async function getEPUBBase() {
+  try {
+    const resp = await fetch('/epub_base.txt');
+    const base = (await resp.text()).trim();
+    return base;
+  } catch (err) {
+    console.error('Failed to load EPUB base URL', err);
+    return null;
+  }
+}
+
 async function loadEPUB() {
+  const base = await getEPUBBase();
+  if (!base) {
+    loadingEl.textContent = 'Error loading EPUB base URL';
+    return;
+  }
+  epubUrl = `${base}/JJK/jjk0.epub`;
+
   try {
     const resp = await fetch(epubUrl);
     if(!resp.ok) throw new Error('EPUB fetch failed: ' + resp.status);
@@ -74,7 +93,10 @@ async function loadEPUB() {
     totalEl.textContent = '/ ' + images.length;
     loadingEl.style.display = 'none';
     render();
-  } catch(e) { loadingEl.textContent = 'Error loading EPUB'; console.error(e); }
+  } catch(e) {
+    loadingEl.textContent = 'Error loading EPUB';
+    console.error(e);
+  }
 }
 
 function render() {
@@ -82,10 +104,10 @@ function render() {
   if (twoPage) {
     const rightIdx = current;
     const leftIdx = current + 1;
-    pageB.style.display = 'block'; // right page
+    pageB.style.display = 'block';
     pageB.src = images[rightIdx].src;
     if (leftIdx < images.length) {
-      pageA.style.display = 'block'; // left page
+      pageA.style.display = 'block';
       pageA.src = images[leftIdx].src;
     } else {
       pageA.style.display = 'none';
