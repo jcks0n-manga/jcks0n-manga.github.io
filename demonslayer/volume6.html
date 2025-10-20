@@ -38,14 +38,14 @@
       <div id="total" style="color:var(--muted); font-size:14px"></div>
     </div>
 
-    <button id="toggleView" class="toggle-btn">Two-page: Off</button>
-    <div class="meta">Volume 6</div>
+    <button id="toggleView" class="toggle-btn">Two-page: On</button>
+    <div class="meta">Demon Slayer Volume 6</div>
   </div>
 
 <script>
-let epubUrl = '/demonslayer/demonslayer6.epub';
+let epubUrl = '';
 let imgFiles = [], images = [];
-let current = 0, twoPage = false;
+let current = 0, twoPage = true;
 const loadingEl = document.getElementById('loading');
 const pageA = document.getElementById('pageA');
 const pageB = document.getElementById('pageB');
@@ -53,7 +53,25 @@ const pagePicker = document.getElementById('pagePicker');
 const totalEl = document.getElementById('total');
 const toggleBtn = document.getElementById('toggleView');
 
+async function getEPUBBase() {
+  try {
+    const resp = await fetch('/epub_base.txt');
+    const base = (await resp.text()).trim();
+    return base;
+  } catch (err) {
+    console.error('Failed to load EPUB base URL', err);
+    return null;
+  }
+}
+
 async function loadEPUB() {
+  const base = await getEPUBBase();
+  if (!base) {
+    loadingEl.textContent = 'Error loading EPUB base URL';
+    return;
+  }
+  epubUrl = `${base}/demonslayer/demonslayer6.epub`;
+
   try {
     const resp = await fetch(epubUrl);
     if(!resp.ok) throw new Error('EPUB fetch failed: ' + resp.status);
@@ -86,27 +104,48 @@ function render() {
     const rightIdx = current;
     const leftIdx = current + 1;
     pageB.style.display = 'block';
-    pageB.src = images[rightIdx].src;
+    pageB.src = images[rightIdx]?.src || '';
     if (leftIdx < images.length) {
       pageA.style.display = 'block';
       pageA.src = images[leftIdx].src;
-    } else { pageA.style.display = 'none'; }
+    } else {
+      pageA.style.display = 'none';
+    }
   } else {
     pageB.style.display = 'block';
-    pageB.src = images[current].src;
+    pageB.src = images[current]?.src || '';
     pageA.style.display = 'none';
   }
   pagePicker.value = Math.min(current + 1, images.length);
 }
 
-function nextPage() { current += twoPage ? 2 : 1; if(current >= images.length) current = images.length-1; render(); }
-function prevPage() { current -= twoPage ? 2 : 1; if(current < 0) current = 0; render(); }
+function nextPage() {
+  current += twoPage ? 2 : 1;
+  if (current >= images.length) current = images.length - 1;
+  render();
+}
+
+function prevPage() {
+  current -= twoPage ? 2 : 1;
+  if (current < 0) current = 0;
+  render();
+}
 
 document.getElementById('rightArrow').onclick = nextPage;
 document.getElementById('leftArrow').onclick = prevPage;
-document.addEventListener('keydown', e => { if(e.key==='ArrowRight') nextPage(); if(e.key==='ArrowLeft') prevPage(); });
-pagePicker.onchange = () => { current = Math.max(0, Math.min(images.length-1, pagePicker.value-1)); render(); };
-toggleBtn.onclick = () => { twoPage = !twoPage; toggleBtn.textContent = 'Two-page: ' + (twoPage ? 'On':'Off'); render(); };
+document.addEventListener('keydown', e => {
+  if(e.key==='ArrowRight') nextPage();
+  if(e.key==='ArrowLeft') prevPage();
+});
+pagePicker.onchange = () => {
+  current = Math.max(0, Math.min(images.length - 1, pagePicker.value - 1));
+  render();
+};
+toggleBtn.onclick = () => {
+  twoPage = !twoPage;
+  toggleBtn.textContent = 'Two-page: ' + (twoPage ? 'On' : 'Off');
+  render();
+};
 
 loadEPUB();
 </script>
