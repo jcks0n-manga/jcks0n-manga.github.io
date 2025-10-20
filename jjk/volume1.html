@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Jujutsu Kaisen Volume 1</title>
+<script src="https://stuk.github.io/jszip/dist/jszip.min.js"></script>
+<style>
+  :root { --bg:#0b0b0b; --muted:rgba(255,255,255,0.55); --accent:rgba(255,255,255,0.95); }
+  html,body { height:100%; margin:0; background:var(--bg); color:white; font-family:system-ui,Segoe UI,Roboto,Arial; }
+  .reader-wrap { height:100vh; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; }
+  #loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:36px; color:white; background:var(--bg); z-index:40; }
+  .arrow { position:fixed; top:50%; transform:translateY(-50%); font-size:64px; color:var(--muted); cursor:pointer; z-index:30; user-select:none; padding:8px; transition:color .15s, transform .08s; }
+  .arrow:hover{ color:var(--accent); transform:translateY(-50%) scale(1.06); }
+  #leftArrow{ left:12px; }
+  #rightArrow{ right:12px; }
+  .page-container { display:flex; flex-direction:row-reverse; gap:8px; align-items:center; justify-content:center; max-width:100%; max-height:100%; }
+  .page-img { max-width:100%; max-height:100vh; object-fit:contain; display:block; }
+  .controls { position:fixed; left:12px; bottom:12px; z-index:50; display:flex; gap:8px; align-items:center; }
+  .controls input[type=number] { width:80px; padding:6px 8px; border-radius:6px; border:0; background:rgba(255,255,255,0.06); color:white; }
+  .toggle-btn { position:fixed; right:12px; bottom:12px; z-index:50; padding:8px 12px; border-radius:6px; border:0; background:rgba(255,255,255,0.06); color:white; cursor:pointer; }
+  .meta { position:fixed; right:12px; top:12px; color:var(--muted); font-size:14px; z-index:50; }
+</style>
+</head>
+<body>
+  <div class="reader-wrap">
+    <div id="loading">Loading manga...</div>
+    <div id="leftArrow" class="arrow" aria-hidden="true">&#10094;</div>
+    <div id="rightArrow" class="arrow" aria-hidden="true">&#10095;</div>
+
+    <div id="pages" class="page-container">
+      <img id="pageA" class="page-img" style="display:none" alt="left page">
+      <img id="pageB" class="page-img" style="display:none" alt="right page">
+    </div>
+
+    <div class="controls">
+      <input id="pagePicker" type="number" min="1" value="1" />
+      <div id="total" style="color:var(--muted); font-size:14px"></div>
+    </div>
+
+    <button id="toggleView" class="toggle-btn">Two-page: Off</button>
+    <div class="meta">Volume 1</div>
+  </div>
+
+<script>
+let epubUrl = '';
+let imgFiles = [], images = [];
+let current = 0, twoPage = false;
+const loadingEl = document.getElementById('loading');
+const pageA = document.getElementById('pageA');
+const pageB = document.getElementById('pageB');
+const pagePicker = document.getElementById('pagePicker');
+const totalEl = document.getElementById('total');
+const toggleBtn = document.getElementById('toggleView');
+
+async function getEPUBBase() {
+  try {
+    const resp = await fetch('/epub_base.txt');
+    const base = (await resp.text()).trim();
+    return base;
+  } catch (err) {
+    console.error('Failed to load EPUB base URL', err);
+    return null;
+  }
+}
+
+async function loadEPUB() {
+  const base = await getEPUBBase();
+  if (!base) {
+    loadingEl.textContent = 'Error loading EPUB base URL';
+    return;
+  }
+  epubUrl = `${base}/JJK/jjk1.epub`;
+
+  try {
+    const resp = await fetch(epubUrl);
+    if(!resp.ok) throw new Error('EPUB fetch failed: ' + resp.status);
+    const blob = await resp.blob();
+    const zip = await JSZip.loadAsync(blob);
+    const found = [];
+    zip.forEach((path, file) => { if(path.match(/\.(jpe?g|png|gif|webp|bmp)$/i)) found.push(path); });
+    found.sort();
+    imgFiles = found;
+    for (const f of imgFiles) {
+      const b = await zip.file(f).async('blob');
+      const u = URL.createObjectURL(b);
+      const im = new Image();
+      im.src = u;
+      images.push(im);
+    }
+    pagePicker.max = images.length;
+    totalEl.textContent = '/ ' + images.length;
+    loadingEl.style.display = 'none';
+    render();
+  } catch(e) {
+    loadingEl.textContent = 'Error loading EPUB';
+    console.error(e);
+  }
+}
+
+function render() {
+  if (images.length === 0) return;
+  if (twoPage) {
+    const rightIdx = current;
+    const leftIdx = current + 1;
+    pageB.style.display = 'block';
+    pageB.src = images[rightIdx].src;
+    if (leftIdx < images.length) {
+      pageA.style.display = 'block';
+      pageA.src = images[leftIdx].src;
+    } else {
+      pageA.style.display = 'none';
+    }
+  } else {
+    pageB.style.display = 'block';
+    pageB.src = images[current].src;
+    pageA.style.display = 'none';
+  }
+  pagePicker.value = Math.min(current + 1, images.length);
+}
+
+function nextPage() { current += twoPage ? 2 : 1; if (current >= images.length) current = images.length - 1; render(); }
+function prevPage() { current -= twoPage ? 2 : 1; if (current < 0) current = 0; render(); }
+
+document.getElementById('rightArrow').onclick = nextPage;
+document.getElementById('leftArrow').onclick = prevPage;
+document.addEventListener('keydown', e => { if(e.key==='ArrowRight') nextPage(); if(e.key==='ArrowLeft') prevPage(); });
+pagePicker.onchange = () => { current = Math.max(0, Math.min(images.length - 1, pagePicker.value - 1)); render(); };
+toggleBtn.onclick = () => { twoPage = !twoPage; toggleBtn.textContent = 'Two-page: ' + (twoPage ? 'On' : 'Off'); render(); };
+
+loadEPUB();
+</script>
+</body>
+</html>
